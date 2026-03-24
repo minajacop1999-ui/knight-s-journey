@@ -1,0 +1,91 @@
+[gd_scene format=3 uid="uid://bkjefdv1300yl"]
+
+[ext_resource type="AudioStream" uid="uid://dw4upb14jyf55" path="res://music/mouse-click.mp3" id="1_rgh6u"]
+
+[sub_resource type="GDScript" id="GDScript_wpq1v"]
+resource_name = "ui sound effect"
+script/source = "class_name UISoundController
+extends Node
+
+@export var root_path : NodePath = ^\"..\"
+@export var audio_bus : StringName = &\"SFX\"
+@export var persistent : bool = true :
+	set(value):
+		persistent = value
+		_update_persistent_signals()
+
+@export_group(\"Button Sounds\")
+@export var button_hovered : AudioStream
+@export var button_focused : AudioStream
+@export var button_pressed : AudioStream
+
+@onready var root_node : Node = get_node(root_path)
+
+var button_hovered_player : AudioStreamPlayer
+var button_focused_player : AudioStreamPlayer
+var button_pressed_player : AudioStreamPlayer
+
+const MAX_DEPTH = 16
+
+func _update_persistent_signals() -> void:
+	if not is_inside_tree():
+		return
+	var tree_node = get_tree()
+	if persistent:
+		if not tree_node.node_added.is_connected(connect_ui_sounds):
+			tree_node.node_added.connect(connect_ui_sounds)
+	else:
+		if tree_node.node_added.is_connected(connect_ui_sounds):
+			tree_node.node_added.disconnect(connect_ui_sounds)
+
+func _build_stream_player(stream : AudioStream, name : String) -> AudioStreamPlayer:
+	if stream == null:
+		return null
+	var p = AudioStreamPlayer.new()
+	p.stream = stream
+	p.bus = audio_bus
+	p.name = name
+	add_child(p)
+	return p
+
+func _build_button_players():
+	button_hovered_player = _build_stream_player(button_hovered, \"ButtonHovered\")
+	button_focused_player = _build_stream_player(button_focused, \"ButtonFocused\")
+	button_pressed_player = _build_stream_player(button_pressed, \"ButtonPressed\")
+
+func _play(p: AudioStreamPlayer) -> void:
+	if p:
+		p.play()
+
+func _connect(node: Node, player: AudioStreamPlayer, signal_name: StringName):
+	if player and not node.is_connected(signal_name, _play.bind(player)):
+		node.connect(signal_name, _play.bind(player))
+
+func connect_ui_sounds(node: Node) -> void:
+	if node is Button:
+		_connect(node, button_hovered_player, &\"mouse_entered\")
+		_connect(node, button_focused_player, &\"focus_entered\")
+		_connect(node, button_pressed_player, &\"pressed\")
+
+func _recursive_connect(current: Node, depth := 0):
+	if depth >= MAX_DEPTH:
+		return
+	for child in current.get_children():
+		connect_ui_sounds(child)
+		_recursive_connect(child, depth + 1)
+
+func _ready() -> void:
+	_build_button_players()
+	_recursive_connect(root_node)
+	persistent = persistent
+
+func _exit_tree() -> void:
+	var t = get_tree()
+	if t.node_added.is_connected(connect_ui_sounds):
+		t.node_added.disconnect(connect_ui_sounds)
+"
+
+[node name="ui sound effect" type="Node" unique_id=276487198]
+process_physics_priority = 1
+script = SubResource("GDScript_wpq1v")
+button_pressed = ExtResource("1_rgh6u")
